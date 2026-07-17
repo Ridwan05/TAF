@@ -26,6 +26,7 @@ function createStub() {
         data: { user: null, session: null },
         error: new Error('Supabase not configured')
       }),
+      updateUser: async () => ({ data: { user: null }, error: new Error('Supabase not configured') }),
       signOut: async () => ({ error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
     }

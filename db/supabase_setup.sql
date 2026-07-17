@@ -26,6 +26,9 @@ create table if not exists partners (
 alter table partners add column if not exists impl_start date;
 alter table partners add column if not exists impl_end date;
 alter table partners add column if not exists responsible_teams text[] default '{}';
+alter table partners add column if not exists grant_year integer;
+alter table partners add column if not exists report_objectives text[] default '{}';
+alter table partners add column if not exists lessons_learned text[] default '{}';
 
 -- Budget lines: the utilization breakdown per partner. The partner's disbursed
 -- is the sum of total_used across its lines; remaining is the sum of the left.

@@ -25,10 +25,10 @@ export default function Header() {
         {loading ? null : user ? (
           <>
             {canManageUsers && <Link href="/admin/users" className="btn ghost small">Users</Link>}
-            <div className="user-name">
+            <Link href="/account" className="user-name" style={{ textDecoration: 'none', color: 'inherit' }}>
               {displayName(user)}
               <span className="role">{role || ''}</span>
-            </div>
+            </Link>
             <button className="btn ghost small" onClick={signOut}>Logout</button>
           </>
         ) : (

@@ -30,7 +30,10 @@ export default function Dashboard() {
   const { partners, setPartners } = useContext(DataContext)
   const { canEdit } = useAuth()
   const [filter, setFilter] = useState('All Partners')
+  const [yearFilter, setYearFilter] = useState('All Years')
   const [adding, setAdding] = useState(false)
+
+  const years = Array.from(new Set(partners.map(p => p.grantYear).filter(Boolean))).sort((a, b) => b - a)
 
   const onAddSave = saved => {
     setPartners(prev => (
@@ -41,7 +44,9 @@ export default function Dashboard() {
     setAdding(false)
   }
 
-  const shown = filter === 'All Partners' ? partners : partners.filter(p => p.name === filter)
+  const shown = partners
+    .filter(p => filter === 'All Partners' || p.name === filter)
+    .filter(p => yearFilter === 'All Years' || String(p.grantYear) === yearFilter)
 
   const labels = shown.map(p => p.name)
 
@@ -102,6 +107,10 @@ export default function Dashboard() {
           <select value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 'auto' }}>
             <option>All Partners</option>
             {partners.map(p => <option key={p.id}>{p.name}</option>)}
+          </select>
+          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={{ width: 'auto' }}>
+            <option>All Years</option>
+            {years.map(y => <option key={y} value={String(y)}>Grant Year {y}</option>)}
           </select>
           {canEdit && <button className="btn green" onClick={() => setAdding(true)}>Add Partner</button>}
           <button className="btn ghost">Download</button>

@@ -38,6 +38,10 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
       ? form.responsibleTeams
       : String(form.responsibleTeams || '').split(',').map(s => s.trim()).filter(Boolean)
 
+    const toLines = v => (Array.isArray(v) ? v : String(v || '').split('\n')).map(s => s.trim()).filter(Boolean)
+    const objectives = toLines(form.reportObjectives)
+    const lessons = toLines(form.lessonsLearned)
+
     setSaving(true)
     setError('')
     try {
@@ -54,7 +58,10 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
         utilization_type: rag,           // derived
         impl_start: form.implStart || null,
         impl_end: form.implEnd || null,
-        responsible_teams: teams
+        responsible_teams: teams,
+        grant_year: form.grantYear ? Number(form.grantYear) : null,
+        report_objectives: objectives,
+        lessons_learned: lessons
       })
       if (pErr) throw pErr
 
@@ -67,7 +74,7 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
         await supabase.from('kpis').insert(form.kpis.map(k => ({ partner_id: id, name: k.name, target: k.target, current: k.current, owner: k.owner, status: k.status })))
       }
 
-      onSave({ ...form, id, disbursed, utilizationType: rag, responsibleTeams: teams })
+      onSave({ ...form, id, disbursed, utilizationType: rag, responsibleTeams: teams, reportObjectives: objectives, lessonsLearned: lessons })
     } catch (err) {
       console.error('save error', err)
       setError(err?.message || 'Save failed. See console.')
@@ -125,6 +132,10 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
               <label>Target date</label>
               <input type="date" value={form.targetDate?.slice(0, 10) || ''} onChange={e => update({ targetDate: e.target.value })} />
             </div>
+            <div className="field">
+              <label>Grant year</label>
+              <input type="number" placeholder="e.g. 2026" value={form.grantYear ?? ''} onChange={e => update({ grantYear: e.target.value })} />
+            </div>
           </div>
 
           <div className="section-title">Implementation timeline</div>
@@ -156,6 +167,22 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
             <div className="field full">
               <label>Actual outcome</label>
               <textarea rows={3} value={form.actualOutcome || ''} onChange={e => update({ actualOutcome: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="section-title">Report objectives &amp; lessons</div>
+          <div className="form-grid">
+            <div className="field full">
+              <label>Report objectives <span className="muted">(one per line)</span></label>
+              <textarea rows={4}
+                value={Array.isArray(form.reportObjectives) ? form.reportObjectives.join('\n') : (form.reportObjectives || '')}
+                onChange={e => update({ reportObjectives: e.target.value })} />
+            </div>
+            <div className="field full">
+              <label>Lessons learned <span className="muted">(one per line)</span></label>
+              <textarea rows={4}
+                value={Array.isArray(form.lessonsLearned) ? form.lessonsLearned.join('\n') : (form.lessonsLearned || '')}
+                onChange={e => update({ lessonsLearned: e.target.value })} />
             </div>
           </div>
 

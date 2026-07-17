@@ -26,6 +26,8 @@ export default function PartnerDetail({ id }) {
   const cur = partner.currency
   const lines = partner.budgetLines || []
   const teams = partner.responsibleTeams || []
+  const objectives = partner.reportObjectives || []
+  const lessons = partner.lessonsLearned || []
 
   const applyPartner = updater =>
     setPartners(prev => prev.map(p => (p.id === partner.id ? withDerived(updater(p)) : p)))
@@ -159,6 +161,24 @@ export default function PartnerDetail({ id }) {
           <div className="card"><h3>Purpose (summary)</h3><p className="muted" style={{ margin: 0 }}>{partner.purpose || '—'}</p></div>
           <div className="card"><h3>Expected Outcome</h3><p className="muted" style={{ margin: 0 }}>{partner.expectedOutcome || '—'}</p></div>
           <div className="card"><h3>Actual Outcome</h3><p className="muted" style={{ margin: 0 }}>{partner.actualOutcome || '—'}</p></div>
+
+          <div className="card">
+            <h3>Report Objectives</h3>
+            {objectives.length ? (
+              <ul className="muted" style={{ margin: 0, paddingLeft: 20 }}>
+                {objectives.map((o, i) => <li key={i} style={{ marginBottom: 6 }}>{o}</li>)}
+              </ul>
+            ) : <p className="muted" style={{ margin: 0 }}>—</p>}
+          </div>
+
+          <div className="card">
+            <h3>Lessons Learned</h3>
+            {lessons.length ? (
+              <ul className="muted" style={{ margin: 0, paddingLeft: 20 }}>
+                {lessons.map((l, i) => <li key={i} style={{ marginBottom: 6 }}>{l}</li>)}
+              </ul>
+            ) : <p className="muted" style={{ margin: 0 }}>—</p>}
+          </div>
 
           <div className="card">
             <h3>Implementation Timeline</h3>

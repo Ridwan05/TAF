@@ -23,6 +23,9 @@ function mapPartner(row) {
     implStart: row.impl_start,
     implEnd: row.impl_end,
     responsibleTeams: row.responsible_teams || [],
+    grantYear: row.grant_year ?? null,
+    reportObjectives: row.report_objectives || [],
+    lessonsLearned: row.lessons_learned || [],
     milestones: [],
     kpis: [],
     budgetLines: []
