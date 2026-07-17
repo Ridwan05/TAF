@@ -3,42 +3,58 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-function Field({label, children}){
-  return <div style={{marginBottom:12}}><label style={{fontWeight:700}}>{label}</label><div>{children}</div></div>
-}
-
-function slugify(s){
+function slugify(s) {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-export default function EditPartnerModal({ partner, onClose, onSave, isNew = false, title }){
+export default function EditPartnerModal({ partner, onClose, onSave, isNew = false, title }) {
   const [form, setForm] = useState({ ...partner })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
-  const update = (patch) => setForm(f => ({...f, ...patch}))
+  const update = patch => setForm(f => ({ ...f, ...patch }))
 
   const addMilestone = () => {
     const m = { id: Date.now(), text: 'New milestone', date: '', status: 'Not Started' }
-    update({ milestones: [...(form.milestones||[]), m] })
+    update({ milestones: [...(form.milestones || []), m] })
+  }
+  const removeMilestone = idx => {
+    const arr = [...(form.milestones || [])]
+    arr.splice(idx, 1)
+    update({ milestones: arr })
+  }
+  const patchMilestone = (idx, patch) => {
+    const arr = [...(form.milestones || [])]
+    arr[idx] = { ...arr[idx], ...patch }
+    update({ milestones: arr })
   }
 
   const addKpi = () => {
     const k = { id: Date.now(), name: 'New KPI', target: '', current: '', owner: '', status: 'Amber' }
-    update({ kpis: [...(form.kpis||[]), k] })
+    update({ kpis: [...(form.kpis || []), k] })
+  }
+  const removeKpi = idx => {
+    const arr = [...(form.kpis || [])]
+    arr.splice(idx, 1)
+    update({ kpis: arr })
+  }
+  const patchKpi = (idx, patch) => {
+    const arr = [...(form.kpis || [])]
+    arr[idx] = { ...arr[idx], ...patch }
+    update({ kpis: arr })
   }
 
   const save = async () => {
-    // For a new partner, derive a stable id from the entered ID or the name.
     const id = (isNew ? (slugify(form.id) || slugify(form.name)) : form.id) || `partner-${Date.now()}`
 
     if (isNew && !form.name.trim()) {
-      alert('Please enter a partner name.')
+      setError('Please enter a partner name.')
       return
     }
 
     setSaving(true)
+    setError('')
     try {
-      // upsert partner
       const { error: pErr } = await supabase.from('partners').upsert({
         id,
         name: form.name,
@@ -51,10 +67,8 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
         actual_outcome: form.actualOutcome,
         utilization_type: form.utilizationType
       })
-
       if (pErr) throw pErr
 
-      // replace milestones and kpis for simplicity
       await supabase.from('milestones').delete().eq('partner_id', id)
       if (form.milestones && form.milestones.length) {
         const toInsert = form.milestones.map(m => ({ partner_id: id, text: m.text, date: m.date || null, status: m.status }))
@@ -62,120 +76,128 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
       }
 
       await supabase.from('kpis').delete().eq('partner_id', id)
-      if (form.kpis && form.kpis.length){
+      if (form.kpis && form.kpis.length) {
         const toInsert = form.kpis.map(k => ({ partner_id: id, name: k.name, target: k.target, current: k.current, owner: k.owner, status: k.status }))
         await supabase.from('kpis').insert(toInsert)
       }
 
-      // fetch updated partner row including nested milestones/kpis is left to client
       onSave({ ...form, id })
     } catch (err) {
       console.error('save error', err)
-      alert('Save failed. See console.')
+      setError(err?.message || 'Save failed. See console.')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.3)'}}>
-      <div style={{width:900,maxHeight:'90vh',overflow:'auto',background:'#fff',padding:20,borderRadius:12}}>
-        <h3>{title || (isNew ? 'Add Partner' : 'Edit Partner')}</h3>
-        <Field label="Name"><input value={form.name} onChange={e=>update({name:e.target.value})} /></Field>
-        {isNew && (
-          <Field label="Partner ID (URL slug)">
-            <input value={form.id} placeholder={slugify(form.name) || 'auto-generated from name'}
-              onChange={e=>update({id:e.target.value})} />
-          </Field>
-        )}
-        <Field label="Currency"><input value={form.currency} onChange={e=>update({currency:e.target.value})} /></Field>
-        <Field label="Utilization (RAG)">
-          <select value={form.utilizationType || 'Green'} onChange={e=>update({utilizationType:e.target.value})}>
-            <option>Green</option>
-            <option>Amber</option>
-            <option>Red</option>
-          </select>
-        </Field>
-        <Field label="Grant"><input type="number" value={form.grant} onChange={e=>update({grant:Number(e.target.value)})} /></Field>
-        <Field label="Disbursed"><input type="number" value={form.disbursed} onChange={e=>update({disbursed:Number(e.target.value)})} /></Field>
-        <Field label="Target Date"><input type="date" value={form.targetDate?.slice(0,10)} onChange={e=>update({targetDate:e.target.value})} /></Field>
-        <Field label="Purpose"><textarea value={form.purpose} onChange={e=>update({purpose:e.target.value})} rows={3} /></Field>
-        <Field label="Expected Outcome"><textarea value={form.expectedOutcome} onChange={e=>update({expectedOutcome:e.target.value})} rows={3} /></Field>
-        <Field label="Actual Outcome"><textarea value={form.actualOutcome} onChange={e=>update({actualOutcome:e.target.value})} rows={3} /></Field>
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3>{title || (isNew ? 'Add Partner' : 'Edit Partner')}</h3>
+            {!isNew && <p className="sub">{form.name}</p>}
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
 
-        <div style={{display:'flex',gap:12}}>
-          <div style={{flex:1}}>
-            <h4>Milestones</h4>
-            {(form.milestones||[]).map((m, idx)=> (
-              <div key={m.id} style={{marginBottom:8,border:'1px solid #eef2f7',padding:8,borderRadius:6}}>
-                <input style={{width:'100%'}} value={m.text} onChange={e=>{
-                  const arr = [...(form.milestones||[])]
-                  arr[idx] = {...arr[idx], text:e.target.value}
-                  update({milestones:arr})
-                }} />
-                <div style={{display:'flex',gap:8,marginTop:6}}>
-                  <input type="date" value={m.date||''} onChange={e=>{
-                    const arr = [...(form.milestones||[])]
-                    arr[idx] = {...arr[idx], date:e.target.value}
-                    update({milestones:arr})
-                  }} />
-                  <select value={m.status} onChange={e=>{
-                    const arr = [...(form.milestones||[])]
-                    arr[idx] = {...arr[idx], status:e.target.value}
-                    update({milestones:arr})
-                  }}>
-                    <option>Not Started</option>
-                    <option>On Going</option>
-                    <option>Completed</option>
-                  </select>
-                </div>
+        <div className="modal-body">
+          <div className="section-title first">Details</div>
+          <div className="form-grid">
+            <div className="field">
+              <label>Name</label>
+              <input value={form.name || ''} onChange={e => update({ name: e.target.value })} />
+            </div>
+            {isNew && (
+              <div className="field">
+                <label>Partner ID (URL slug)</label>
+                <input value={form.id || ''} placeholder={slugify(form.name) || 'auto from name'}
+                  onChange={e => update({ id: e.target.value })} />
               </div>
-            ))}
-            <button className="btn" onClick={addMilestone}>Add milestone</button>
+            )}
+            <div className="field">
+              <label>Currency</label>
+              <input value={form.currency || ''} onChange={e => update({ currency: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>Utilization (RAG)</label>
+              <select value={form.utilizationType || 'Green'} onChange={e => update({ utilizationType: e.target.value })}>
+                <option>Green</option>
+                <option>Amber</option>
+                <option>Red</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Grant</label>
+              <input type="number" value={form.grant ?? 0} onChange={e => update({ grant: Number(e.target.value) })} />
+            </div>
+            <div className="field">
+              <label>Disbursed</label>
+              <input type="number" value={form.disbursed ?? 0} onChange={e => update({ disbursed: Number(e.target.value) })} />
+            </div>
+            <div className="field">
+              <label>Target date</label>
+              <input type="date" value={form.targetDate?.slice(0, 10) || ''} onChange={e => update({ targetDate: e.target.value })} />
+            </div>
+            <div className="field full">
+              <label>Purpose</label>
+              <textarea rows={3} value={form.purpose || ''} onChange={e => update({ purpose: e.target.value })} />
+            </div>
+            <div className="field full">
+              <label>Expected outcome</label>
+              <textarea rows={3} value={form.expectedOutcome || ''} onChange={e => update({ expectedOutcome: e.target.value })} />
+            </div>
+            <div className="field full">
+              <label>Actual outcome</label>
+              <textarea rows={3} value={form.actualOutcome || ''} onChange={e => update({ actualOutcome: e.target.value })} />
+            </div>
           </div>
 
-          <div style={{flex:1}}>
-            <h4>KPIs</h4>
-            {(form.kpis||[]).map((k, idx)=> (
-              <div key={k.id} style={{marginBottom:8,border:'1px solid #eef2f7',padding:8,borderRadius:6}}>
-                <input style={{width:'100%'}} value={k.name} onChange={e=>{
-                  const arr = [...(form.kpis||[])]
-                  arr[idx] = {...arr[idx], name:e.target.value}
-                  update({kpis:arr})
-                }} />
-                <input placeholder="target" value={k.target||''} onChange={e=>{
-                  const arr = [...(form.kpis||[])]
-                  arr[idx] = {...arr[idx], target:e.target.value}
-                  update({kpis:arr})
-                }} />
-                <input placeholder="current" value={k.current||''} onChange={e=>{
-                  const arr = [...(form.kpis||[])]
-                  arr[idx] = {...arr[idx], current:e.target.value}
-                  update({kpis:arr})
-                }} />
-                <input placeholder="owner" value={k.owner||''} onChange={e=>{
-                  const arr = [...(form.kpis||[])]
-                  arr[idx] = {...arr[idx], owner:e.target.value}
-                  update({kpis:arr})
-                }} />
-                <select value={k.status} onChange={e=>{
-                  const arr = [...(form.kpis||[])]
-                  arr[idx] = {...arr[idx], status:e.target.value}
-                  update({kpis:arr})
-                }}>
+          <div className="section-title">Milestones</div>
+          {(form.milestones || []).map((m, idx) => (
+            <div className="subcard" key={m.id ?? idx}>
+              <div className="field" style={{ marginBottom: 8 }}>
+                <input value={m.text} placeholder="Milestone" onChange={e => patchMilestone(idx, { text: e.target.value })} />
+              </div>
+              <div className="row-inline">
+                <input type="date" value={m.date || ''} onChange={e => patchMilestone(idx, { date: e.target.value })} />
+                <select value={m.status} onChange={e => patchMilestone(idx, { status: e.target.value })}>
+                  <option>Not Started</option>
+                  <option>On Going</option>
+                  <option>Completed</option>
+                </select>
+                <button type="button" className="btn ghost small" style={{ flex: '0 0 auto' }} onClick={() => removeMilestone(idx)}>Remove</button>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn ghost small" onClick={addMilestone}>+ Add milestone</button>
+
+          <div className="section-title">KPIs</div>
+          {(form.kpis || []).map((k, idx) => (
+            <div className="subcard" key={k.id ?? idx}>
+              <div className="field" style={{ marginBottom: 8 }}>
+                <input value={k.name} placeholder="KPI name" onChange={e => patchKpi(idx, { name: e.target.value })} />
+              </div>
+              <div className="row-inline">
+                <input placeholder="Target" value={k.target || ''} onChange={e => patchKpi(idx, { target: e.target.value })} />
+                <input placeholder="Current" value={k.current || ''} onChange={e => patchKpi(idx, { current: e.target.value })} />
+                <input placeholder="Owner" value={k.owner || ''} onChange={e => patchKpi(idx, { owner: e.target.value })} />
+                <select value={k.status} onChange={e => patchKpi(idx, { status: e.target.value })}>
                   <option>Green</option>
                   <option>Amber</option>
                   <option>Red</option>
                 </select>
+                <button type="button" className="btn ghost small" style={{ flex: '0 0 auto' }} onClick={() => removeKpi(idx)}>Remove</button>
               </div>
-            ))}
-            <button className="btn" onClick={addKpi}>Add KPI</button>
-          </div>
+            </div>
+          ))}
+          <button type="button" className="btn ghost small" onClick={addKpi}>+ Add KPI</button>
         </div>
 
-        <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:12}}>
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn green" onClick={save} disabled={saving}>{saving? 'Saving...':'Save Changes'}</button>
+        <div className="modal-footer">
+          {error && <p className="form-error" style={{ marginRight: 'auto', alignSelf: 'center' }}>{error}</p>}
+          <button className="btn ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn green" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
         </div>
       </div>
     </div>

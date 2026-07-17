@@ -5,101 +5,126 @@ import { DataContext } from '../lib/DataProvider'
 import { useAuth } from '../lib/AuthProvider'
 import EditPartnerModal from '../components/EditPartnerModal'
 
+const STATUS_PILL = {
+  Completed: 'green',
+  'On Going': 'amber',
+  'Not Started': 'red'
+}
+
 export default function PartnerDetail({ id }) {
   const { partners, setPartners } = useContext(DataContext)
   const { user, canEdit } = useAuth()
   const [editing, setEditing] = useState(false)
 
-  // Derive the partner from context during render so it works for both
-  // server-side rendering and client hydration (no effect required).
   const partner = partners.find(x => x.id === id) ?? null
 
-  if (!partner) return <div className="container"><p>Partner not found.</p></div>
+  if (!partner) return <div className="card"><p>Partner not found.</p></div>
 
   const balance = partner.grant - partner.disbursed
-  const utilization = Math.round((partner.disbursed / partner.grant) * 100)
+  const utilization = partner.grant > 0 ? Math.round((partner.disbursed / partner.grant) * 100) : 0
+  const cur = partner.currency
 
   const onSave = updated => {
-    // update partners in context; the derived `partner` reflects it next render
     setPartners(prev => prev.map(p => (p.id === updated.id ? updated : p)))
     setEditing(false)
   }
 
   return (
-    <div>
+    <div className="stack">
       <div className="page-header">
-        <h1>{partner.name} <span className={`pill ${partner.utilizationType?.toLowerCase()}`}>{partner.utilizationType}</span></h1>
+        <h1>
+          {partner.name}{' '}
+          <span className={`pill ${(partner.utilizationType || '').toLowerCase()}`}>{partner.utilizationType}</span>
+        </h1>
         <div className="actions">
           {canEdit
             ? <button className="btn" onClick={() => setEditing(true)}>Edit</button>
-            : <span className="role">{user ? 'Read-only access' : 'Sign in to edit'}</span>}
+            : <span className="muted">{user ? 'Read-only access' : 'Sign in to edit'}</span>}
+        </div>
+      </div>
+
+      <div className="stat-row">
+        <div className="stat blue">
+          <div className="label">Total Grant</div>
+          <div className="value">{cur} {Number(partner.grant).toLocaleString()}</div>
+        </div>
+        <div className="stat green">
+          <div className="label">Disbursed</div>
+          <div className="value">{cur} {Number(partner.disbursed).toLocaleString()}</div>
+        </div>
+        <div className="stat orange">
+          <div className="label">Remaining Balance</div>
+          <div className="value">{cur} {balance.toLocaleString()}</div>
+        </div>
+        <div className="stat navy">
+          <div className="label">Full utilization target date</div>
+          <div className="value">{partner.targetDate ? new Date(partner.targetDate).toLocaleDateString() : '—'}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="progress-head">
+          <div style={{ fontWeight: 600 }}>Utilization Progress</div>
+          <div className="pct">{utilization}%</div>
+        </div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${Math.min(utilization, 100)}%` }} />
         </div>
       </div>
 
       <div className="grid">
-        <div className="card">
-          <div style={{display:'flex',gap:12}}>
-            <div className="card" style={{flex:1,background:'#4b6cb7',color:'#fff'}}>
-              <div>Total Grant</div>
-              <h2>{partner.currency} {partner.grant.toLocaleString()}</h2>
-            </div>
-            <div className="card" style={{flex:1,background:'#2ecc71',color:'#fff'}}>
-              <div>Disbursed</div>
-              <h2>{partner.currency} {partner.disbursed.toLocaleString()}</h2>
-            </div>
-            <div className="card" style={{flex:1,background:'#f54f2c',color:'#fff'}}>
-              <div>Remaining Balance</div>
-              <h2>{partner.currency} {balance.toLocaleString()}</h2>
-            </div>
-            <div className="card" style={{flex:1,background:'#0f1724',color:'#fff'}}>
-              <div>Full utilization target Date</div>
-              <h2>{new Date(partner.targetDate).toLocaleDateString()}</h2>
-            </div>
-          </div>
-
-          <div style={{marginTop:16}} className="card">
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div>Utilization Progress</div>
-              <div style={{fontWeight:700}}>{utilization}%</div>
-            </div>
-            <div style={{height:14,background:'#eef2f7',borderRadius:8,marginTop:8}}>
-              <div style={{width:`${utilization}%`,height:14,background:'#2ecc71',borderRadius:8}} />
-            </div>
-          </div>
-
-          <div className="card" style={{marginTop:16}}>
+        <div className="stack">
+          <div className="card">
             <h3>Purpose (summary)</h3>
-            <p>{partner.purpose}</p>
-
+            <p className="muted" style={{ margin: 0 }}>{partner.purpose || '—'}</p>
+          </div>
+          <div className="card">
             <h3>Expected Outcome</h3>
-            <p>{partner.expectedOutcome}</p>
-
+            <p className="muted" style={{ margin: 0 }}>{partner.expectedOutcome || '—'}</p>
+          </div>
+          <div className="card">
             <h3>Actual Outcome</h3>
-            <p>{partner.actualOutcome}</p>
+            <p className="muted" style={{ margin: 0 }}>{partner.actualOutcome || '—'}</p>
           </div>
         </div>
 
-        <div>
+        <div className="stack">
           <div className="card">
             <h4>Key Milestones</h4>
             {partner.milestones?.length ? (
-              <ul>
+              <div className="stack" style={{ gap: 10 }}>
                 {partner.milestones.map(m => (
-                  <li key={m.id}>{m.text} — <em>{m.status}</em></li>
+                  <div className="subcard" key={m.id} style={{ marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{m.text}</div>
+                      {m.date && <div className="muted" style={{ fontSize: 12 }}>{new Date(m.date).toLocaleDateString()}</div>}
+                    </div>
+                    <span className={`pill ${STATUS_PILL[m.status] || 'amber'}`}>{m.status}</span>
+                  </div>
                 ))}
-              </ul>
-            ) : <p>No milestones defined.</p>}
+              </div>
+            ) : <p className="muted" style={{ margin: 0 }}>No milestones defined.</p>}
           </div>
 
-          <div className="card" style={{marginTop:12}}>
+          <div className="card">
             <h4>KPIs</h4>
             {partner.kpis?.length ? (
-              <ul>
+              <div className="stack" style={{ gap: 10 }}>
                 {partner.kpis.map(k => (
-                  <li key={k.id}>{k.name} — {k.current} ({k.status})</li>
+                  <div className="subcard" key={k.id} style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontWeight: 600 }}>{k.name}</div>
+                      <span className={`pill ${(k.status || '').toLowerCase()}`}>{k.status}</span>
+                    </div>
+                    <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+                      {k.target && <span>Target: {k.target}&nbsp;&nbsp;</span>}
+                      {k.current && <span>Current: {k.current}</span>}
+                    </div>
+                    {k.owner && <div className="muted" style={{ fontSize: 13 }}>Owner: {k.owner}</div>}
+                  </div>
                 ))}
-              </ul>
-            ) : <p>No KPIs defined.</p>}
+              </div>
+            ) : <p className="muted" style={{ margin: 0 }}>No KPIs defined.</p>}
           </div>
         </div>
       </div>

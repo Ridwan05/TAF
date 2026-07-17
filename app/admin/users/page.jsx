@@ -94,26 +94,22 @@ export default function AdminUsersPage() {
         <div className="card">
           <h3>Create user</h3>
           <form onSubmit={createUser}>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>Email</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }} />
+            <div className="field">
+              <label>Email</label>
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} />
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>Password</label>
-              <input type="text" required value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="min 8 characters"
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }} />
+            <div className="field">
+              <label>Password</label>
+              <input type="text" required value={password} onChange={e => setPassword(e.target.value)} placeholder="min 8 characters" />
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>Role</label>
-              <select value={role} onChange={e => setRole(e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}>
+            <div className="field">
+              <label>Role</label>
+              <select value={role} onChange={e => setRole(e.target.value)}>
                 {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
-            {error && <p style={{ color: '#e74c3c', margin: '0 0 12px' }}>{error}</p>}
-            {notice && <p style={{ color: '#2d9f73', margin: '0 0 12px' }}>{notice}</p>}
+            {error && <p className="form-error">{error}</p>}
+            {notice && <p className="form-ok">{notice}</p>}
             <button type="submit" className="btn green" disabled={busy}>
               {busy ? 'Creating…' : 'Create user'}
             </button>
@@ -121,28 +117,30 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="table-card card">
-          <table>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Role</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 ? (
-                <tr><td colSpan={3} style={{ padding: 18 }}>No users yet.</td></tr>
-              ) : users.map(u => (
-                <tr key={u.id}>
-                  <td>{u.email}</td>
-                  <td><span className="pill" style={{ background: '#4b6cb7' }}>{u.role}</span></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className="btn small" onClick={() => setEditingUser(u)}>Edit</button>
-                  </td>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr><td colSpan={3} style={{ padding: 18 }}>No users yet.</td></tr>
+                ) : users.map(u => (
+                  <tr key={u.id}>
+                    <td>{u.email}</td>
+                    <td><span className="pill role">{u.role}</span></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="btn ghost small" onClick={() => setEditingUser(u)}>Edit</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

@@ -33,30 +33,31 @@ export default function EditUserModal({ user, onClose, onSave }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', zIndex: 50 }}>
-      <form onSubmit={submit} style={{ width: 380, background: '#fff', padding: 24, borderRadius: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Edit user</h3>
-        <p style={{ marginTop: 0, color: '#6b7280' }}>{user.email}</p>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>Role</label>
-          <select value={role} onChange={e => setRole(e.target.value)}
-            style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}>
-            {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <form className="modal narrow" onMouseDown={e => e.stopPropagation()} onSubmit={submit}>
+        <div className="modal-header">
+          <div>
+            <h3>Edit user</h3>
+            <p className="sub">{user.email}</p>
+          </div>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>New password</label>
-          <input type="text" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="leave blank to keep current"
-            style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }} />
+        <div className="modal-body">
+          <div className="field">
+            <label>Role</label>
+            <select value={role} onChange={e => setRole(e.target.value)}>
+              {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>New password</label>
+            <input type="text" value={password} placeholder="leave blank to keep current"
+              onChange={e => setPassword(e.target.value)} />
+          </div>
+          {error && <p className="form-error">{error}</p>}
         </div>
-
-        {error && <p style={{ color: '#e74c3c', margin: '0 0 12px' }}>{error}</p>}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+        <div className="modal-footer">
+          <button type="button" className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" className="btn green" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
         </div>
       </form>
