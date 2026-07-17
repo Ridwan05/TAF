@@ -5,12 +5,42 @@ import Link from 'next/link'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js'
 import { DataContext } from '../lib/DataProvider'
+import { useAuth } from '../lib/AuthProvider'
+import EditPartnerModal from '../components/EditPartnerModal'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, ArcElement)
 
+function blankPartner() {
+  return {
+    id: '',
+    name: '',
+    currency: 'USD',
+    grant: 0,
+    disbursed: 0,
+    targetDate: '',
+    purpose: '',
+    expectedOutcome: '',
+    actualOutcome: '',
+    utilizationType: 'Green',
+    milestones: [],
+    kpis: []
+  }
+}
+
 export default function Dashboard() {
-  const { partners } = useContext(DataContext)
+  const { partners, setPartners } = useContext(DataContext)
+  const { canEdit } = useAuth()
   const [filter, setFilter] = useState('All Partners')
+  const [adding, setAdding] = useState(false)
+
+  const onAddSave = saved => {
+    setPartners(prev => (
+      prev.some(p => p.id === saved.id)
+        ? prev.map(p => (p.id === saved.id ? saved : p))
+        : [...prev, saved]
+    ))
+    setAdding(false)
+  }
 
   const labels = partners.map(p => p.name)
   const utilization = partners.map(p => Math.round((p.disbursed / p.grant) * 100))
@@ -48,7 +78,7 @@ export default function Dashboard() {
               <option key={p.id}>{p.name}</option>
             ))}
           </select>
-          <button className="btn green">TAF Approval</button>
+          {canEdit && <button className="btn green" onClick={() => setAdding(true)}>Add Partner</button>}
           <button className="btn">Download</button>
         </div>
       </div>
@@ -94,6 +124,15 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
+
+      {adding && (
+        <EditPartnerModal
+          partner={blankPartner()}
+          isNew
+          onClose={() => setAdding(false)}
+          onSave={onAddSave}
+        />
+      )}
     </div>
   )
 }
