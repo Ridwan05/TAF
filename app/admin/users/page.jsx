@@ -2,9 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../../src/lib/AuthProvider'
+import { ALL_ROLES } from '../../../src/lib/roles'
 
 export default function AdminUsersPage() {
-  const { isAdmin, loading, getAccessToken } = useAuth()
+  const { canManageUsers, loading, getAccessToken } = useAuth()
 
   const [users, setUsers] = useState([])
   const [email, setEmail] = useState('')
@@ -35,8 +36,8 @@ export default function AdminUsersPage() {
   }, [authedFetch])
 
   useEffect(() => {
-    if (isAdmin) loadUsers()
-  }, [isAdmin, loadUsers])
+    if (canManageUsers) loadUsers()
+  }, [canManageUsers, loadUsers])
 
   const createUser = async e => {
     e.preventDefault()
@@ -61,7 +62,7 @@ export default function AdminUsersPage() {
   }
 
   if (loading) return <p>Loading…</p>
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <div className="card">
         <h1>User management</h1>
@@ -95,9 +96,7 @@ export default function AdminUsersPage() {
               <label style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>Role</label>
               <select value={role} onChange={e => setRole(e.target.value)}
                 style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}>
-                <option value="editor">Editor — can edit data</option>
-                <option value="admin">Admin — can edit data and manage users</option>
-                <option value="viewer">Viewer — read only</option>
+                {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
             {error && <p style={{ color: '#e74c3c', margin: '0 0 12px' }}>{error}</p>}

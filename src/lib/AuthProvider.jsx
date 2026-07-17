@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { roleFromUser, canEditRole, canManageUsersRole } from './roles'
 
 const AuthContext = createContext(null)
 
@@ -11,7 +12,6 @@ export function useAuth() {
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,24 +33,6 @@ export default function AuthProvider({ children }) {
     }
   }, [])
 
-  // Load the user's role from their profile whenever the user changes.
-  useEffect(() => {
-    let mounted = true
-    if (!user) {
-      setRole(null)
-      return
-    }
-    supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (mounted) setRole(data?.role ?? 'viewer')
-      })
-    return () => { mounted = false }
-  }, [user])
-
   const signIn = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
@@ -59,7 +41,6 @@ export default function AuthProvider({ children }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setUser(null)
-    setRole(null)
   }
 
   // Returns the current session's access token, for authenticating API routes.
@@ -68,12 +49,14 @@ export default function AuthProvider({ children }) {
     return data?.session?.access_token ?? null
   }
 
-  const isAdmin = role === 'admin'
-  const canEdit = role === 'editor' || role === 'admin'
+  // Role comes directly off the authenticated user's metadata (no DB lookup).
+  const role = roleFromUser(user)
+  const canEdit = canEditRole(role)
+  const canManageUsers = canManageUsersRole(role)
 
   return (
     <AuthContext.Provider
-      value={{ user, role, isAdmin, canEdit, loading, signIn, signOut, getAccessToken }}
+      value={{ user, role, canEdit, canManageUsers, loading, signIn, signOut, getAccessToken }}
     >
       {children}
     </AuthContext.Provider>

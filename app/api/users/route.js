@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '../../../src/lib/supabaseAdmin'
+import { ALL_ROLES, canManageUsersRole, roleFromUser } from '../../../src/lib/roles'
 
-const VALID_ROLES = ['viewer', 'editor', 'admin']
-
-// Resolve the caller from their bearer token and confirm they are an admin.
+// Resolve the caller from their bearer token and confirm they may manage users.
 // Returns { admin } on success or { error, status } to short-circuit.
-async function requireAdmin(request) {
+async function requireUserManager(request) {
   const authHeader = request.headers.get('authorization') || ''
   const token = authHeader.replace(/^Bearer\s+/i, '').trim()
   if (!token) return { error: 'Missing authorization token', status: 401 }
@@ -22,13 +21,7 @@ async function requireAdmin(request) {
     return { error: 'Invalid or expired session', status: 401 }
   }
 
-  const { data: profile, error: profErr } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', userData.user.id)
-    .single()
-
-  if (profErr || profile?.role !== 'admin') {
+  if (!canManageUsersRole(roleFromUser(userData.user))) {
     return { error: 'Admin access required', status: 403 }
   }
 
@@ -36,20 +29,22 @@ async function requireAdmin(request) {
 }
 
 export async function GET(request) {
-  const gate = await requireAdmin(request)
+  const gate = await requireUserManager(request)
   if (gate.error) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
-  const { data, error } = await gate.admin
-    .from('profiles')
-    .select('id, email, role')
-    .order('email', { ascending: true })
-
+  const { data, error } = await gate.admin.auth.admin.listUsers({ perPage: 1000 })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ users: data ?? [] })
+
+  const users = (data?.users ?? []).map(u => ({
+    id: u.id,
+    email: u.email,
+    role: roleFromUser(u)
+  }))
+  return NextResponse.json({ users })
 }
 
 export async function POST(request) {
-  const gate = await requireAdmin(request)
+  const gate = await requireUserManager(request)
   if (gate.error) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   let body
@@ -69,35 +64,22 @@ export async function POST(request) {
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
-  if (!VALID_ROLES.includes(role)) {
-    return NextResponse.json({ error: `Role must be one of: ${VALID_ROLES.join(', ')}` }, { status: 400 })
+  if (!ALL_ROLES.includes(role)) {
+    return NextResponse.json({ error: `Role must be one of: ${ALL_ROLES.join(', ')}` }, { status: 400 })
   }
 
-  const { admin } = gate
-
-  // Create the auth user (confirmed so they can log in immediately).
-  const { data: created, error: createErr } = await admin.auth.admin.createUser({
+  // Store the role in BOTH app_metadata (authoritative; not user-editable, so
+  // it's what RLS trusts) and user_metadata (consistent with existing users).
+  const { data: created, error: createErr } = await gate.admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: { role },
     user_metadata: { role }
   })
 
   if (createErr) {
     return NextResponse.json({ error: createErr.message }, { status: 400 })
-  }
-
-  // Ensure the profile row exists with the chosen role (the DB trigger also
-  // does this; the upsert makes it robust if the trigger isn't installed).
-  const { error: profErr } = await admin
-    .from('profiles')
-    .upsert({ id: created.user.id, email, role }, { onConflict: 'id' })
-
-  if (profErr) {
-    return NextResponse.json(
-      { error: `User created but role assignment failed: ${profErr.message}` },
-      { status: 500 }
-    )
   }
 
   return NextResponse.json({

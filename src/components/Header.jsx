@@ -10,7 +10,7 @@ function displayName(user) {
 }
 
 export default function Header() {
-  const { user, role, isAdmin, loading, signOut } = useAuth()
+  const { user, role, canManageUsers, loading, signOut } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
 
   return (
@@ -24,7 +24,7 @@ export default function Header() {
       <div className="user-area">
         {loading ? null : user ? (
           <>
-            {isAdmin && <Link href="/admin/users" className="btn small">Users</Link>}
+            {canManageUsers && <Link href="/admin/users" className="btn small">Users</Link>}
             <div className="user-name">
               {displayName(user)}
               <span className="role">{role || ''}</span>

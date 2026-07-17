@@ -26,32 +26,38 @@ The app runs at http://localhost:3000. It works without Supabase configured — 
 - In project settings > API, copy the values into your env file:
   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (public, browser-exposed)
   - `SUPABASE_SERVICE_ROLE_KEY` — the **service_role** key. **Server-only**; never prefix it with `NEXT_PUBLIC_` and never expose it to the browser. It is used only by the `/api/users` route to create users.
-- Run `db/supabase_setup.sql` in the Supabase SQL editor. It creates the `partners`, `milestones`, `kpis`, and `profiles` tables, RLS policies, a role helper function, and a trigger that gives every new auth user a profile.
+- Run `db/supabase_setup.sql` in the Supabase SQL editor. It is **additive only**: it creates the `partners`, `milestones`, and `kpis` tables, their RLS policies, and one helper function (`taf_user_role()`). It does **not** create or modify any `profiles` table, trigger, or existing users — so it is safe to run against a Supabase project shared with another app.
 
 ## Roles & access
 
-Access is controlled by a `role` on each user's row in the `profiles` table:
+Roles are read from the user's **auth metadata**, not a separate table. TAF checks
+`app_metadata.role` first (authoritative — only settable by admins/service-role),
+falling back to `user_metadata.role`. This lets TAF honor roles that a shared
+project already assigns. Recognized roles and their TAF capabilities:
 
 | Role | Can view | Can edit data | Can manage users |
 |------|:--------:|:-------------:|:----------------:|
 | (not signed in) | ✅ | — | — |
 | `viewer` | ✅ | — | — |
 | `editor` | ✅ | ✅ | — |
+| `hr`     | ✅ | ✅ | — |
+| `ceo`    | ✅ | ✅ | — |
 | `admin`  | ✅ | ✅ | ✅ |
 
-- Viewing the dashboard is public; editing requires `editor`/`admin` (enforced by RLS, not just the UI).
-- Admins get a **Users** link in the header → `/admin/users`, where they create `editor`/`admin`/`viewer` accounts (email + password). This calls the server-side `/api/users` route, which verifies the caller is an admin and uses the service_role key to create the user.
+- Viewing the dashboard is public; editing requires `admin`/`ceo`/`hr`/`editor` (enforced by RLS via `taf_user_role()`, not just the UI). The edit/admin role sets are defined in `src/lib/roles.js`.
+- Admins get a **Users** link in the header → `/admin/users`, where they create accounts (email + password + role). This calls the server-side `/api/users` route, which verifies the caller is an admin and uses the service_role key to create the user, writing the role to both `app_metadata` and `user_metadata`.
 
-### Bootstrapping the first admin (one-time)
+> **Security note:** `user_metadata` can be edited by the user themselves, so it is a
+> weaker signal than `app_metadata`. TAF-created users get their role in `app_metadata`
+> (which RLS trusts first). Pre-existing users whose role lives only in `user_metadata`
+> could in principle change their own role; migrate important roles to `app_metadata`
+> if that matters for your threat model.
 
-There is no admin yet to create the first one, so:
+### First admin
 
-1. In the Supabase dashboard → **Authentication → Users → Add user**, create your account (set a password and mark it confirmed).
-2. In the SQL editor, promote it:
-   ```sql
-   update public.profiles set role = 'admin' where email = 'you@example.com';
-   ```
-3. Log in to the app → the **Users** link appears → create everyone else from there.
+Any user whose metadata role is already `admin` can open **Users** and create the rest.
+To promote an existing user to admin, set their role in the Supabase dashboard
+(Authentication → the user → metadata) or via the admin API.
 
 ## Deploying to Vercel
 

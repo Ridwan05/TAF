@@ -1,3 +1,10 @@
+-- TAF schema setup.
+--
+-- IMPORTANT: this Supabase project is shared with another application. This
+-- script is written to be ADDITIVE ONLY -- it creates TAF's own tables and a
+-- helper function, and never touches existing tables, users, or the shared
+-- `profiles` table. It creates no triggers on auth.users. Safe to re-run.
+
 -- Enable extensions
 create extension if not exists pgcrypto;
 
@@ -35,58 +42,27 @@ create table if not exists kpis (
   status text
 );
 
--- Profiles: one row per auth user, holding their role.
--- Roles: viewer (read only) | editor (can edit data) | admin (can also manage users)
-create table if not exists profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text,
-  role text not null default 'viewer' check (role in ('viewer','editor','admin'))
-);
-
--- Helper: the calling user's role. SECURITY DEFINER so it can read `profiles`
--- without tripping RLS (which would otherwise recurse when used inside a policy).
-create or replace function public.current_user_role()
+-- Role helper: reads the calling user's role from their JWT. Prefers
+-- app_metadata (only settable by admins/service-role) and falls back to
+-- user_metadata (where this project's existing roles live). No table access,
+-- so it cannot affect or depend on the shared schema.
+create or replace function public.taf_user_role()
 returns text
 language sql
 stable
-security definer
-set search_path = public
 as $$
-  select role from public.profiles where id = auth.uid()
-$$;
-
--- When a new auth user is created, create their profile. The role is taken from
--- the user_metadata `role` set at creation time, defaulting to 'viewer'.
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.profiles (id, email, role)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'viewer')
+  select coalesce(
+    auth.jwt() -> 'app_metadata' ->> 'role',
+    auth.jwt() -> 'user_metadata' ->> 'role',
+    ''
   )
-  on conflict (id) do nothing;
-  return new;
-end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
--- Row-Level Security
--- Enable RLS on all tables. Data is publicly readable; writes require an
--- 'editor' or 'admin' role. Profiles are managed by admins only.
+-- Row-Level Security (only on TAF's own tables).
+-- Data is publicly readable; writes require an editing role.
 alter table partners enable row level security;
 alter table milestones enable row level security;
 alter table kpis enable row level security;
-alter table profiles enable row level security;
 
 -- Public read access
 drop policy if exists "partners_read" on partners;
@@ -96,39 +72,22 @@ create policy "milestones_read" on milestones for select using (true);
 drop policy if exists "kpis_read" on kpis;
 create policy "kpis_read" on kpis for select using (true);
 
--- Write access (insert / update / delete): editors and admins only
+-- Write access (insert / update / delete): admin, ceo, hr, editor
 drop policy if exists "partners_write" on partners;
 create policy "partners_write" on partners for all
   to authenticated
-  using (public.current_user_role() in ('editor','admin'))
-  with check (public.current_user_role() in ('editor','admin'));
+  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
+  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
 drop policy if exists "milestones_write" on milestones;
 create policy "milestones_write" on milestones for all
   to authenticated
-  using (public.current_user_role() in ('editor','admin'))
-  with check (public.current_user_role() in ('editor','admin'));
+  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
+  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
 drop policy if exists "kpis_write" on kpis;
 create policy "kpis_write" on kpis for all
   to authenticated
-  using (public.current_user_role() in ('editor','admin'))
-  with check (public.current_user_role() in ('editor','admin'));
-
--- Profiles: a user can read their own profile; admins can read all.
-drop policy if exists "profiles_read" on profiles;
-create policy "profiles_read" on profiles for select
-  to authenticated
-  using (id = auth.uid() or public.current_user_role() = 'admin');
--- Only admins may create/modify/delete profiles (i.e. change roles).
-drop policy if exists "profiles_admin_write" on profiles;
-create policy "profiles_admin_write" on profiles for all
-  to authenticated
-  using (public.current_user_role() = 'admin')
-  with check (public.current_user_role() = 'admin');
-
--- Bootstrap the first admin (chicken-and-egg): create the first user in the
--- Supabase dashboard (Authentication > Users), then run the line below once
--- with their email to promote them. After that, admins create users in-app.
---   update public.profiles set role = 'admin' where email = 'you@example.com';
+  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
+  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
 
 -- Seed sample partners
 insert into partners (id,name,currency,"grant",disbursed,target_date,purpose,expected_outcome,actual_outcome,utilization_type)
