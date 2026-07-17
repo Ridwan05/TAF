@@ -39,12 +39,12 @@ project already assigns. Recognized roles and their TAF capabilities:
 |------|:--------:|:-------------:|:----------------:|
 | (not signed in) | ✅ | — | — |
 | `viewer` | ✅ | — | — |
+| `ceo`    | ✅ | — | — |
 | `editor` | ✅ | ✅ | — |
 | `hr`     | ✅ | ✅ | — |
-| `ceo`    | ✅ | ✅ | — |
 | `admin`  | ✅ | ✅ | ✅ |
 
-- Viewing the dashboard is public; editing requires `admin`/`ceo`/`hr`/`editor` (enforced by RLS via `taf_user_role()`, not just the UI). The edit/admin role sets are defined in `src/lib/roles.js`.
+- Viewing the dashboard is public; editing requires `admin`/`hr`/`editor` (enforced by RLS via `taf_user_role()`, not just the UI). The edit/admin role sets are defined in `src/lib/roles.js`.
 - Admins get a **Users** link in the header → `/admin/users`, where they create accounts (email + password + role). This calls the server-side `/api/users` route, which verifies the caller is an admin and uses the service_role key to create the user, writing the role to both `app_metadata` and `user_metadata`.
 
 > **Security note:** `user_metadata` can be edited by the user themselves, so it is a

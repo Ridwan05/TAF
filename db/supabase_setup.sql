@@ -72,22 +72,22 @@ create policy "milestones_read" on milestones for select using (true);
 drop policy if exists "kpis_read" on kpis;
 create policy "kpis_read" on kpis for select using (true);
 
--- Write access (insert / update / delete): admin, ceo, hr, editor
+-- Write access (insert / update / delete): admin, hr, editor (viewer/ceo read-only)
 drop policy if exists "partners_write" on partners;
 create policy "partners_write" on partners for all
   to authenticated
-  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
-  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
+  using (public.taf_user_role() in ('admin','hr','editor'))
+  with check (public.taf_user_role() in ('admin','hr','editor'));
 drop policy if exists "milestones_write" on milestones;
 create policy "milestones_write" on milestones for all
   to authenticated
-  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
-  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
+  using (public.taf_user_role() in ('admin','hr','editor'))
+  with check (public.taf_user_role() in ('admin','hr','editor'));
 drop policy if exists "kpis_write" on kpis;
 create policy "kpis_write" on kpis for all
   to authenticated
-  using (public.taf_user_role() in ('admin','ceo','hr','editor'))
-  with check (public.taf_user_role() in ('admin','ceo','hr','editor'));
+  using (public.taf_user_role() in ('admin','hr','editor'))
+  with check (public.taf_user_role() in ('admin','hr','editor'));
 
 -- Seed sample partners
 insert into partners (id,name,currency,"grant",disbursed,target_date,purpose,expected_outcome,actual_outcome,utilization_type)

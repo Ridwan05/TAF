@@ -9,7 +9,8 @@
 export const ALL_ROLES = ['admin', 'ceo', 'hr', 'editor', 'viewer']
 
 // Roles allowed to create/update TAF data (partners, milestones, KPIs).
-export const EDIT_ROLES = ['admin', 'ceo', 'hr', 'editor']
+// (viewer and ceo are read-only.)
+export const EDIT_ROLES = ['admin', 'hr', 'editor']
 
 // Roles allowed to manage TAF users (the admin Users page + /api/users).
 export const ADMIN_ROLES = ['admin']
