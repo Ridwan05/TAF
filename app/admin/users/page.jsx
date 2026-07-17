@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../../src/lib/AuthProvider'
 import { ALL_ROLES } from '../../../src/lib/roles'
+import EditUserModal from '../../../src/components/EditUserModal'
 
 export default function AdminUsersPage() {
   const { canManageUsers, loading, getAccessToken } = useAuth()
@@ -14,6 +15,7 @@ export default function AdminUsersPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [editingUser, setEditingUser] = useState(null)
 
   const authedFetch = useCallback(async (url, options = {}) => {
     const token = await getAccessToken()
@@ -38,6 +40,17 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (canManageUsers) loadUsers()
   }, [canManageUsers, loadUsers])
+
+  const saveUser = async (id, payload) => {
+    const res = await authedFetch('/api/users', {
+      method: 'PATCH',
+      body: JSON.stringify({ id, ...payload })
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error || 'Update failed')
+    setNotice(`Updated ${body.user.email} (${body.user.role})`)
+    loadUsers()
+  }
 
   const createUser = async e => {
     e.preventDefault()
@@ -113,21 +126,33 @@ export default function AdminUsersPage() {
               <tr>
                 <th>Email</th>
                 <th>Role</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {users.length === 0 ? (
-                <tr><td colSpan={2} style={{ padding: 18 }}>No users yet.</td></tr>
+                <tr><td colSpan={3} style={{ padding: 18 }}>No users yet.</td></tr>
               ) : users.map(u => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
                   <td><span className="pill" style={{ background: '#4b6cb7' }}>{u.role}</span></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn small" onClick={() => setEditingUser(u)}>Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={saveUser}
+        />
+      )}
     </div>
   )
 }
