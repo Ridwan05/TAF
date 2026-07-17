@@ -22,6 +22,23 @@ create table if not exists partners (
   utilization_type text
 );
 
+-- Additive columns for existing partners tables (safe to re-run).
+alter table partners add column if not exists impl_start date;
+alter table partners add column if not exists impl_end date;
+alter table partners add column if not exists responsible_teams text[] default '{}';
+
+-- Budget lines: the utilization breakdown per partner. The partner's disbursed
+-- is the sum of total_used across its lines; remaining is the sum of the left.
+create table if not exists budget_lines (
+  id uuid default gen_random_uuid() primary key,
+  partner_id text references partners(id) on delete cascade,
+  activity text,
+  currency text,
+  taf_type text check (taf_type in ('Refundable','Non-Refundable')),
+  total_amount numeric default 0,
+  total_used numeric default 0
+);
+
 -- Milestones
 create table if not exists milestones (
   id uuid default gen_random_uuid() primary key,
@@ -63,6 +80,7 @@ $$;
 alter table partners enable row level security;
 alter table milestones enable row level security;
 alter table kpis enable row level security;
+alter table budget_lines enable row level security;
 
 -- Public read access
 drop policy if exists "partners_read" on partners;
@@ -71,6 +89,8 @@ drop policy if exists "milestones_read" on milestones;
 create policy "milestones_read" on milestones for select using (true);
 drop policy if exists "kpis_read" on kpis;
 create policy "kpis_read" on kpis for select using (true);
+drop policy if exists "budget_lines_read" on budget_lines;
+create policy "budget_lines_read" on budget_lines for select using (true);
 
 -- Write access (insert / update / delete): admin, hr, editor (viewer/ceo read-only)
 drop policy if exists "partners_write" on partners;
@@ -85,6 +105,11 @@ create policy "milestones_write" on milestones for all
   with check (public.taf_user_role() in ('admin','hr','editor'));
 drop policy if exists "kpis_write" on kpis;
 create policy "kpis_write" on kpis for all
+  to authenticated
+  using (public.taf_user_role() in ('admin','hr','editor'))
+  with check (public.taf_user_role() in ('admin','hr','editor'));
+drop policy if exists "budget_lines_write" on budget_lines;
+create policy "budget_lines_write" on budget_lines for all
   to authenticated
   using (public.taf_user_role() in ('admin','hr','editor'))
   with check (public.taf_user_role() in ('admin','hr','editor'));

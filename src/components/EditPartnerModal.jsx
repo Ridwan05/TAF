@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { ragFor, sumUsed } from '../lib/partnerCalc'
 
 function slugify(s) {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -14,43 +15,28 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
 
   const update = patch => setForm(f => ({ ...f, ...patch }))
 
-  const addMilestone = () => {
-    const m = { id: Date.now(), text: 'New milestone', date: '', status: 'Not Started' }
-    update({ milestones: [...(form.milestones || []), m] })
-  }
-  const removeMilestone = idx => {
-    const arr = [...(form.milestones || [])]
-    arr.splice(idx, 1)
-    update({ milestones: arr })
-  }
-  const patchMilestone = (idx, patch) => {
-    const arr = [...(form.milestones || [])]
-    arr[idx] = { ...arr[idx], ...patch }
-    update({ milestones: arr })
-  }
+  // Derived (read-only): disbursed comes from budget lines; RAG from utilization.
+  const lines = form.budgetLines || []
+  const disbursed = lines.length ? sumUsed(lines) : Number(form.disbursed || 0)
+  const grant = Number(form.grant || 0)
+  const utilization = grant > 0 ? Math.round((disbursed / grant) * 100) : 0
+  const rag = ragFor(disbursed, grant)
 
-  const addKpi = () => {
-    const k = { id: Date.now(), name: 'New KPI', target: '', current: '', owner: '', status: 'Amber' }
-    update({ kpis: [...(form.kpis || []), k] })
-  }
-  const removeKpi = idx => {
-    const arr = [...(form.kpis || [])]
-    arr.splice(idx, 1)
-    update({ kpis: arr })
-  }
-  const patchKpi = (idx, patch) => {
-    const arr = [...(form.kpis || [])]
-    arr[idx] = { ...arr[idx], ...patch }
-    update({ kpis: arr })
-  }
+  const addMilestone = () => update({ milestones: [...(form.milestones || []), { id: Date.now(), text: 'New milestone', date: '', status: 'Not Started' }] })
+  const removeMilestone = idx => { const arr = [...(form.milestones || [])]; arr.splice(idx, 1); update({ milestones: arr }) }
+  const patchMilestone = (idx, patch) => { const arr = [...(form.milestones || [])]; arr[idx] = { ...arr[idx], ...patch }; update({ milestones: arr }) }
+
+  const addKpi = () => update({ kpis: [...(form.kpis || []), { id: Date.now(), name: 'New KPI', target: '', current: '', owner: '', status: 'Amber' }] })
+  const removeKpi = idx => { const arr = [...(form.kpis || [])]; arr.splice(idx, 1); update({ kpis: arr }) }
+  const patchKpi = (idx, patch) => { const arr = [...(form.kpis || [])]; arr[idx] = { ...arr[idx], ...patch }; update({ kpis: arr }) }
 
   const save = async () => {
     const id = (isNew ? (slugify(form.id) || slugify(form.name)) : form.id) || `partner-${Date.now()}`
+    if (isNew && !form.name.trim()) { setError('Please enter a partner name.'); return }
 
-    if (isNew && !form.name.trim()) {
-      setError('Please enter a partner name.')
-      return
-    }
+    const teams = Array.isArray(form.responsibleTeams)
+      ? form.responsibleTeams
+      : String(form.responsibleTeams || '').split(',').map(s => s.trim()).filter(Boolean)
 
     setSaving(true)
     setError('')
@@ -60,28 +46,28 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
         name: form.name,
         currency: form.currency,
         grant: form.grant,
-        disbursed: form.disbursed,
+        disbursed,                       // derived, kept in sync
         target_date: form.targetDate || null,
         purpose: form.purpose,
         expected_outcome: form.expectedOutcome,
         actual_outcome: form.actualOutcome,
-        utilization_type: form.utilizationType
+        utilization_type: rag,           // derived
+        impl_start: form.implStart || null,
+        impl_end: form.implEnd || null,
+        responsible_teams: teams
       })
       if (pErr) throw pErr
 
       await supabase.from('milestones').delete().eq('partner_id', id)
-      if (form.milestones && form.milestones.length) {
-        const toInsert = form.milestones.map(m => ({ partner_id: id, text: m.text, date: m.date || null, status: m.status }))
-        await supabase.from('milestones').insert(toInsert)
+      if (form.milestones?.length) {
+        await supabase.from('milestones').insert(form.milestones.map(m => ({ partner_id: id, text: m.text, date: m.date || null, status: m.status })))
       }
-
       await supabase.from('kpis').delete().eq('partner_id', id)
-      if (form.kpis && form.kpis.length) {
-        const toInsert = form.kpis.map(k => ({ partner_id: id, name: k.name, target: k.target, current: k.current, owner: k.owner, status: k.status }))
-        await supabase.from('kpis').insert(toInsert)
+      if (form.kpis?.length) {
+        await supabase.from('kpis').insert(form.kpis.map(k => ({ partner_id: id, name: k.name, target: k.target, current: k.current, owner: k.owner, status: k.status })))
       }
 
-      onSave({ ...form, id })
+      onSave({ ...form, id, disbursed, utilizationType: rag, responsibleTeams: teams })
     } catch (err) {
       console.error('save error', err)
       setError(err?.message || 'Save failed. See console.')
@@ -89,6 +75,8 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
       setSaving(false)
     }
   }
+
+  const teamsValue = Array.isArray(form.responsibleTeams) ? form.responsibleTeams.join(', ') : (form.responsibleTeams || '')
 
   return (
     <div className="modal-overlay" onMouseDown={onClose}>
@@ -111,8 +99,7 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
             {isNew && (
               <div className="field">
                 <label>Partner ID (URL slug)</label>
-                <input value={form.id || ''} placeholder={slugify(form.name) || 'auto from name'}
-                  onChange={e => update({ id: e.target.value })} />
+                <input value={form.id || ''} placeholder={slugify(form.name) || 'auto from name'} onChange={e => update({ id: e.target.value })} />
               </div>
             )}
             <div className="field">
@@ -120,25 +107,44 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
               <input value={form.currency || ''} onChange={e => update({ currency: e.target.value })} />
             </div>
             <div className="field">
-              <label>Utilization (RAG)</label>
-              <select value={form.utilizationType || 'Green'} onChange={e => update({ utilizationType: e.target.value })}>
-                <option>Green</option>
-                <option>Amber</option>
-                <option>Red</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Grant</label>
+              <label>Total Grant</label>
               <input type="number" value={form.grant ?? 0} onChange={e => update({ grant: Number(e.target.value) })} />
             </div>
             <div className="field">
-              <label>Disbursed</label>
-              <input type="number" value={form.disbursed ?? 0} onChange={e => update({ disbursed: Number(e.target.value) })} />
+              <label>Disbursed <span className="muted">(from budget lines)</span></label>
+              <input value={`${form.currency || ''} ${disbursed.toLocaleString()}`} readOnly disabled />
+            </div>
+            <div className="field">
+              <label>Utilization / RAG <span className="muted">(auto)</span></label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 40 }}>
+                <strong>{utilization}%</strong>
+                <span className={`pill ${rag.toLowerCase()}`}>{rag}</span>
+              </div>
             </div>
             <div className="field">
               <label>Target date</label>
               <input type="date" value={form.targetDate?.slice(0, 10) || ''} onChange={e => update({ targetDate: e.target.value })} />
             </div>
+          </div>
+
+          <div className="section-title">Implementation timeline</div>
+          <div className="form-grid">
+            <div className="field">
+              <label>Start date</label>
+              <input type="date" value={form.implStart?.slice(0, 10) || ''} onChange={e => update({ implStart: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>End date</label>
+              <input type="date" value={form.implEnd?.slice(0, 10) || ''} onChange={e => update({ implEnd: e.target.value })} />
+            </div>
+            <div className="field full">
+              <label>Responsible teams <span className="muted">(comma separated)</span></label>
+              <input value={teamsValue} placeholder="Clean Energy Team, Legal, …" onChange={e => update({ responsibleTeams: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="section-title">Narrative</div>
+          <div className="form-grid">
             <div className="field full">
               <label>Purpose</label>
               <textarea rows={3} value={form.purpose || ''} onChange={e => update({ purpose: e.target.value })} />
@@ -162,9 +168,7 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
               <div className="row-inline">
                 <input type="date" value={m.date || ''} onChange={e => patchMilestone(idx, { date: e.target.value })} />
                 <select value={m.status} onChange={e => patchMilestone(idx, { status: e.target.value })}>
-                  <option>Not Started</option>
-                  <option>On Going</option>
-                  <option>Completed</option>
+                  <option>Not Started</option><option>On Going</option><option>Completed</option>
                 </select>
                 <button type="button" className="btn ghost small" style={{ flex: '0 0 auto' }} onClick={() => removeMilestone(idx)}>Remove</button>
               </div>
@@ -183,9 +187,7 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
                 <input placeholder="Current" value={k.current || ''} onChange={e => patchKpi(idx, { current: e.target.value })} />
                 <input placeholder="Owner" value={k.owner || ''} onChange={e => patchKpi(idx, { owner: e.target.value })} />
                 <select value={k.status} onChange={e => patchKpi(idx, { status: e.target.value })}>
-                  <option>Green</option>
-                  <option>Amber</option>
-                  <option>Red</option>
+                  <option>Green</option><option>Amber</option><option>Red</option>
                 </select>
                 <button type="button" className="btn ghost small" style={{ flex: '0 0 auto' }} onClick={() => removeKpi(idx)}>Remove</button>
               </div>
