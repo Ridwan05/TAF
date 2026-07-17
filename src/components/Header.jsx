@@ -19,7 +19,7 @@ export default function Header() {
         <Link href="/" className="logo">Infra<span className="accent">Credit</span></Link>
       </div>
 
-      <div className="app-title">TAF Management System 1.0</div>
+      <div className="app-title">TAF Utilization Report</div>
 
       <div className="user-area">
         {loading ? null : user ? (
