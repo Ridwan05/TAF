@@ -40,7 +40,11 @@ export default function EditPartnerModal({ partner, onClose, onSave, isNew = fal
 
     const toLines = v => (Array.isArray(v) ? v : String(v || '').split('\n')).map(s => s.trim()).filter(Boolean)
     const objectives = toLines(form.reportObjectives)
-    const lessons = toLines(form.lessonsLearned)
+    // Lessons: preserve the author's line breaks and blank-line paragraphs
+    // (only trailing whitespace is trimmed) so numbering/paragraphs survive.
+    const lessons = Array.isArray(form.lessonsLearned)
+      ? form.lessonsLearned
+      : String(form.lessonsLearned || '').replace(/\s+$/, '').split('\n')
 
     setSaving(true)
     setError('')

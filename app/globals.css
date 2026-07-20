@@ -217,6 +217,7 @@ tbody tr:hover { background: var(--bg-2); }
 /* ---------- Utility ---------- */
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .muted { color: var(--muted); }
+.prewrap { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .chip { display: inline-block; padding: 6px 12px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; }
 
 /* ---------- Responsive ---------- */

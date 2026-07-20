@@ -158,9 +158,9 @@ export default function PartnerDetail({ id }) {
 
       <div className="grid">
         <div className="stack">
-          <div className="card"><h3>Purpose (summary)</h3><p className="muted" style={{ margin: 0 }}>{partner.purpose || '—'}</p></div>
-          <div className="card"><h3>Expected Outcome</h3><p className="muted" style={{ margin: 0 }}>{partner.expectedOutcome || '—'}</p></div>
-          <div className="card"><h3>Actual Outcome</h3><p className="muted" style={{ margin: 0 }}>{partner.actualOutcome || '—'}</p></div>
+          <div className="card"><h3>Purpose (summary)</h3><p className="muted prewrap">{partner.purpose || '—'}</p></div>
+          <div className="card"><h3>Expected Outcome</h3><p className="muted prewrap">{partner.expectedOutcome || '—'}</p></div>
+          <div className="card"><h3>Actual Outcome</h3><p className="muted prewrap">{partner.actualOutcome || '—'}</p></div>
 
           <div className="card">
             <h3>Report Objectives</h3>
@@ -173,11 +173,7 @@ export default function PartnerDetail({ id }) {
 
           <div className="card">
             <h3>Lessons Learned</h3>
-            {lessons.length ? (
-              <ul className="muted" style={{ margin: 0, paddingLeft: 20 }}>
-                {lessons.map((l, i) => <li key={i} style={{ marginBottom: 6 }}>{l}</li>)}
-              </ul>
-            ) : <p className="muted" style={{ margin: 0 }}>—</p>}
+            <p className="muted prewrap">{lessons.join('\n').trim() || '—'}</p>
           </div>
 
           <div className="card">
