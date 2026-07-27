@@ -1,28 +1,32 @@
 'use client'
 
 import React, { useContext, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { DataContext } from '../lib/DataProvider'
 import { useAuth } from '../lib/AuthProvider'
 import { supabase } from '../lib/supabaseClient'
-import { withDerived, sumAmount, sumUsed } from '../lib/partnerCalc'
+import { withDerived, sumAmount, sumUsed, financials } from '../lib/partnerCalc'
 import EditPartnerModal from '../components/EditPartnerModal'
 import BudgetLineModal from '../components/BudgetLineModal'
 
 const STATUS_PILL = { Completed: 'green', 'On Going': 'amber', 'Not Started': 'red' }
 
 export default function PartnerDetail({ id }) {
+  const router = useRouter()
   const { partners, setPartners } = useContext(DataContext)
   const { user, canEdit } = useAuth()
   const [editing, setEditing] = useState(false)
   const [budgetOpen, setBudgetOpen] = useState(true)
   const [editingLine, setEditingLine] = useState(null) // line object, {} for new, or null
   const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const partner = partners.find(x => x.id === id) ?? null
   if (!partner) return <div className="card"><p>Partner not found.</p></div>
 
-  const balance = partner.grant - partner.disbursed
-  const utilization = partner.grant > 0 ? Math.round((partner.disbursed / partner.grant) * 100) : 0
+  const f = financials(partner)
+  const balance = f.remaining
+  const utilization = f.utilization
   const cur = partner.currency
   const lines = partner.budgetLines || []
   const teams = partner.responsibleTeams || []
@@ -66,6 +70,17 @@ export default function PartnerDetail({ id }) {
     applyPartner(p => ({ ...p, budgetLines: p.budgetLines.filter(l => l.id !== lineId) }))
   }
 
+  const deletePartner = async () => {
+    if (!window.confirm(`Delete "${partner.name}" and all its budget lines, milestones and KPIs? This cannot be undone.`)) return
+    setDeleting(true)
+    setError('')
+    // Child rows (budget_lines, milestones, kpis) cascade via ON DELETE CASCADE.
+    const { error: e } = await supabase.from('partners').delete().eq('id', partner.id)
+    if (e) { setError(e.message); setDeleting(false); return }
+    setPartners(prev => prev.filter(p => p.id !== partner.id))
+    router.push('/')
+  }
+
   const otherAmount = editingLine
     ? sumAmount(lines.filter(l => l.id !== editingLine.id))
     : 0
@@ -77,15 +92,21 @@ export default function PartnerDetail({ id }) {
       <div className="page-header">
         <h1>{partner.name} <span className={`pill ${(partner.utilizationType || '').toLowerCase()}`}>{partner.utilizationType}</span></h1>
         <div className="actions">
-          {canEdit
-            ? <button className="btn" onClick={() => setEditing(true)}>Edit</button>
-            : <span className="muted">{user ? 'Read-only access' : 'Sign in to edit'}</span>}
+          {canEdit ? (
+            <>
+              <button className="btn" onClick={() => setEditing(true)}>Edit</button>
+              <button className="btn danger" onClick={deletePartner} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </>
+          ) : <span className="muted">{user ? 'Read-only access' : 'Sign in to edit'}</span>}
         </div>
       </div>
+      {error && <p className="form-error">{error}</p>}
 
       <div className="stat-row">
-        <div className="stat blue"><div className="label">Total Grant</div><div className="value">{cur} {Number(partner.grant).toLocaleString()}</div></div>
-        <div className="stat green"><div className="label">Disbursed</div><div className="value">{cur} {Number(partner.disbursed).toLocaleString()}</div></div>
+        <div className="stat blue"><div className="label">Total Grant</div><div className="value">{cur} {f.grant.toLocaleString()}</div></div>
+        <div className="stat green"><div className="label">Disbursed</div><div className="value">{cur} {f.disbursed.toLocaleString()}</div></div>
         <div className="stat orange"><div className="label">Remaining Balance</div><div className="value">{cur} {balance.toLocaleString()}</div></div>
         <div className="stat navy"><div className="label">Full utilization target date</div><div className="value">{fmtDate(partner.targetDate)}</div></div>
       </div>
@@ -108,7 +129,6 @@ export default function PartnerDetail({ id }) {
             <button className="btn green small" onClick={() => setEditingLine({})}>+ Add line</button>
           )}
         </div>
-        {error && <p className="form-error">{error}</p>}
         {budgetOpen && (
           <div className="table-scroll">
             <table>

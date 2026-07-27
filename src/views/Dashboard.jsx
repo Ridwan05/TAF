@@ -8,15 +8,12 @@ import {
 } from 'chart.js'
 import { DataContext } from '../lib/DataProvider'
 import { useAuth } from '../lib/AuthProvider'
+import { financials } from '../lib/partnerCalc'
 import EditPartnerModal from '../components/EditPartnerModal'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, ArcElement, Tooltip, Legend)
 
 const RAG_COLORS = { Green: '#2ecc71', Amber: '#f39c12', Red: '#e74c3c' }
-
-function utilPct(p) {
-  return p.grant > 0 ? Math.round((p.disbursed / p.grant) * 100) : 0
-}
 
 function blankPartner() {
   return {
@@ -47,6 +44,7 @@ export default function Dashboard() {
   const shown = partners
     .filter(p => filter === 'All Partners' || p.name === filter)
     .filter(p => yearFilter === 'All Years' || String(p.grantYear) === yearFilter)
+    .map(p => ({ ...p, f: financials(p) }))
 
   const labels = shown.map(p => p.name)
 
@@ -54,8 +52,8 @@ export default function Dashboard() {
     labels,
     datasets: [{
       label: 'Utilization %',
-      data: shown.map(utilPct),
-      backgroundColor: shown.map(p => RAG_COLORS[p.utilizationType] || RAG_COLORS.Red),
+      data: shown.map(p => p.f.utilization),
+      backgroundColor: shown.map(p => RAG_COLORS[p.f.rag] || RAG_COLORS.Red),
       borderRadius: 6
     }]
   }
@@ -63,8 +61,8 @@ export default function Dashboard() {
   const grantVsDisbursed = {
     labels,
     datasets: [
-      { label: 'Disbursed', data: shown.map(p => p.disbursed), backgroundColor: '#2ecc71', borderRadius: 4 },
-      { label: 'Remaining', data: shown.map(p => Math.max(p.grant - p.disbursed, 0)), backgroundColor: '#e2e8f0', borderRadius: 4 }
+      { label: 'Disbursed', data: shown.map(p => p.f.disbursed), backgroundColor: '#2ecc71', borderRadius: 4 },
+      { label: 'Remaining', data: shown.map(p => Math.max(p.f.remaining, 0)), backgroundColor: '#e2e8f0', borderRadius: 4 }
     ]
   }
 
@@ -72,9 +70,9 @@ export default function Dashboard() {
     labels: ['Green', 'Amber', 'Red'],
     datasets: [{
       data: [
-        shown.filter(p => p.utilizationType === 'Green').length,
-        shown.filter(p => p.utilizationType === 'Amber').length,
-        shown.filter(p => p.utilizationType === 'Red').length
+        shown.filter(p => p.f.rag === 'Green').length,
+        shown.filter(p => p.f.rag === 'Amber').length,
+        shown.filter(p => p.f.rag === 'Red').length
       ],
       backgroundColor: [RAG_COLORS.Green, RAG_COLORS.Amber, RAG_COLORS.Red],
       borderWidth: 0
@@ -155,11 +153,11 @@ export default function Dashboard() {
                 <tr key={p.id}>
                   <td>{idx + 1}</td>
                   <td><Link href={`/partner/${p.id}`}>{p.name}</Link></td>
-                  <td>{p.currency} {Number(p.grant).toLocaleString()}</td>
-                  <td>{p.currency} {Number(p.disbursed).toLocaleString()}</td>
-                  <td>{p.currency} {(p.grant - p.disbursed).toLocaleString()}</td>
-                  <td>{utilPct(p)}%</td>
-                  <td><span className={`pill ${(p.utilizationType || '').toLowerCase()}`}>{p.utilizationType}</span></td>
+                  <td>{p.currency} {p.f.grant.toLocaleString()}</td>
+                  <td>{p.currency} {p.f.disbursed.toLocaleString()}</td>
+                  <td>{p.currency} {p.f.remaining.toLocaleString()}</td>
+                  <td>{p.f.utilization}%</td>
+                  <td><span className={`pill ${p.f.rag.toLowerCase()}`}>{p.f.rag}</span></td>
                   <td>{p.targetDate ? new Date(p.targetDate).toLocaleDateString() : '—'}</td>
                 </tr>
               ))}
