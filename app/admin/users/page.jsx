@@ -10,6 +10,7 @@ export default function AdminUsersPage() {
 
   const [users, setUsers] = useState([])
   const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('editor')
   const [busy, setBusy] = useState(false)
@@ -48,7 +49,7 @@ export default function AdminUsersPage() {
     })
     const body = await res.json()
     if (!res.ok) throw new Error(body.error || 'Update failed')
-    setNotice(`Updated ${body.user.email} (${body.user.role})`)
+    setNotice(`Updated ${body.user.name ? body.user.name + ' — ' : ''}${body.user.email} (${body.user.role})`)
     loadUsers()
   }
 
@@ -60,12 +61,13 @@ export default function AdminUsersPage() {
     try {
       const res = await authedFetch('/api/users', {
         method: 'POST',
-        body: JSON.stringify({ email, password, role })
+        body: JSON.stringify({ email, name, password, role })
       })
       const body = await res.json()
       if (!res.ok) { setError(body.error || 'Failed to create user'); return }
-      setNotice(`Created ${body.user.email} (${body.user.role})`)
+      setNotice(`Created ${body.user.name ? body.user.name + ' — ' : ''}${body.user.email} (${body.user.role})`)
       setEmail('')
+      setName('')
       setPassword('')
       setRole('editor')
       loadUsers()
@@ -79,7 +81,7 @@ export default function AdminUsersPage() {
     return (
       <div className="card">
         <h1>User management</h1>
-        <p>Access denied. You must be an admin to manage users.</p>
+        <p>Access denied. You must be an admin or HR to manage users.</p>
       </div>
     )
   }
@@ -94,6 +96,10 @@ export default function AdminUsersPage() {
         <div className="card">
           <h3>Create user</h3>
           <form onSubmit={createUser}>
+            <div className="field">
+              <label>Display name</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Tunde Bakare" />
+            </div>
             <div className="field">
               <label>Email</label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)} />
@@ -121,6 +127,7 @@ export default function AdminUsersPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
                   <th></th>
@@ -128,9 +135,10 @@ export default function AdminUsersPage() {
               </thead>
               <tbody>
                 {users.length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: 18 }}>No users yet.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: 18 }}>No users yet.</td></tr>
                 ) : users.map(u => (
                   <tr key={u.id}>
+                    <td>{u.name || <span className="muted">—</span>}</td>
                     <td>{u.email}</td>
                     <td><span className="pill role">{u.role}</span></td>
                     <td style={{ textAlign: 'right' }}>

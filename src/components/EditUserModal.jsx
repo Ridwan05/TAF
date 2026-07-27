@@ -6,6 +6,7 @@ import { ALL_ROLES } from '../lib/roles'
 // `onSave(id, { role, password })` should perform the PATCH and resolve, or
 // throw an Error whose message is shown to the user.
 export default function EditUserModal({ user, onClose, onSave }) {
+  const [name, setName] = useState(user.name || '')
   const [role, setRole] = useState(user.role)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -17,10 +18,11 @@ export default function EditUserModal({ user, onClose, onSave }) {
     setError('')
     try {
       const payload = {}
+      if (name !== (user.name || '')) payload.name = name
       if (role !== user.role) payload.role = role
       if (password) payload.password = password
       if (Object.keys(payload).length === 0) {
-        setError('Change the role or enter a new password.')
+        setError('Change the name, role, or enter a new password.')
         return
       }
       await onSave(user.id, payload)
@@ -43,6 +45,10 @@ export default function EditUserModal({ user, onClose, onSave }) {
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="modal-body">
+          <div className="field">
+            <label>Display name</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Tunde Bakare" />
+          </div>
           <div className="field">
             <label>Role</label>
             <select value={role} onChange={e => setRole(e.target.value)}>

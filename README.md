@@ -41,11 +41,13 @@ project already assigns. Recognized roles and their TAF capabilities:
 | `viewer` | ✅ | — | — |
 | `ceo`    | ✅ | — | — |
 | `editor` | ✅ | ✅ | — |
-| `hr`     | ✅ | ✅ | — |
+| `hr`     | ✅ | ✅ | ✅ |
 | `admin`  | ✅ | ✅ | ✅ |
 
-- Viewing the dashboard is public; editing requires `admin`/`hr`/`editor` (enforced by RLS via `taf_user_role()`, not just the UI). The edit/admin role sets are defined in `src/lib/roles.js`.
-- Admins get a **Users** link in the header → `/admin/users`, where they create accounts (email + password + role). This calls the server-side `/api/users` route, which verifies the caller is an admin and uses the service_role key to create the user, writing the role to both `app_metadata` and `user_metadata`.
+- Viewing the dashboard is public; editing requires `admin`/`hr`/`editor` (enforced by RLS via `taf_user_role()`, not just the UI). The edit/manage-users role sets are defined in `src/lib/roles.js`.
+- `admin` and `hr` get a **Users** link in the header → `/admin/users`, where they create accounts (display name + email + password + role). This calls the server-side `/api/users` route, which verifies the caller may manage users and uses the service_role key to create the user, writing the role to both `app_metadata` and `user_metadata`.
+
+> **Shared-database note:** this project's `auth.users` / `profiles` are shared with another app whose `profiles.role` is a `user_role` enum (`admin`, `ceo`, `hr`). The `handle_new_user` trigger mirrors only those shared roles into `profiles`; TAF-only roles (`viewer`, `editor`) get **no** `profiles` row, so a TAF viewer/editor never gains a real role (e.g. HR) in the other app.
 
 > **Security note:** `user_metadata` can be edited by the user themselves, so it is a
 > weaker signal than `app_metadata`. TAF-created users get their role in `app_metadata`

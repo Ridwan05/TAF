@@ -13,7 +13,7 @@ export const ALL_ROLES = ['admin', 'ceo', 'hr', 'editor', 'viewer']
 export const EDIT_ROLES = ['admin', 'hr', 'editor']
 
 // Roles allowed to manage TAF users (the admin Users page + /api/users).
-export const ADMIN_ROLES = ['admin']
+export const ADMIN_ROLES = ['admin', 'hr']
 
 export function canEditRole(role) {
   return EDIT_ROLES.includes(role)

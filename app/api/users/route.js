@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '../../../src/lib/supabaseAdmin'
 import { ALL_ROLES, canManageUsersRole, roleFromUser } from '../../../src/lib/roles'
 
+const nameFromUser = u => u.user_metadata?.full_name || ''
+
 // Resolve the caller from their bearer token and confirm they may manage users.
 // Returns { admin, caller } on success or { error, status } to short-circuit.
 async function requireUserManager(request) {
@@ -38,7 +40,8 @@ export async function GET(request) {
   const users = (data?.users ?? []).map(u => ({
     id: u.id,
     email: u.email,
-    role: roleFromUser(u)
+    role: roleFromUser(u),
+    name: nameFromUser(u)
   }))
   return NextResponse.json({ users })
 }
@@ -57,6 +60,7 @@ export async function POST(request) {
   const email = (body.email || '').trim()
   const password = body.password || ''
   const role = body.role || 'editor'
+  const name = (body.name || '').trim()
 
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
@@ -70,12 +74,13 @@ export async function POST(request) {
 
   // Store the role in BOTH app_metadata (authoritative; not user-editable, so
   // it's what RLS trusts) and user_metadata (consistent with existing users).
+  // The display name lives in user_metadata.full_name.
   const { data: created, error: createErr } = await gate.admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     app_metadata: { role },
-    user_metadata: { role }
+    user_metadata: { role, full_name: name }
   })
 
   if (createErr) {
@@ -83,7 +88,7 @@ export async function POST(request) {
   }
 
   return NextResponse.json({
-    user: { id: created.user.id, email, role }
+    user: { id: created.user.id, email, role, name }
   })
 }
 
@@ -101,10 +106,11 @@ export async function PATCH(request) {
   const id = (body.id || '').trim()
   const role = body.role
   const password = body.password
+  const name = body.name
 
   if (!id) return NextResponse.json({ error: 'User id is required' }, { status: 400 })
-  if (role === undefined && !password) {
-    return NextResponse.json({ error: 'Nothing to update (provide role and/or password)' }, { status: 400 })
+  if (role === undefined && !password && name === undefined) {
+    return NextResponse.json({ error: 'Nothing to update (provide name, role and/or password)' }, { status: 400 })
   }
   if (role !== undefined && !ALL_ROLES.includes(role)) {
     return NextResponse.json({ error: `Role must be one of: ${ALL_ROLES.join(', ')}` }, { status: 400 })
@@ -120,20 +126,25 @@ export async function PATCH(request) {
 
   const updates = {}
   if (password) updates.password = password
-  if (role !== undefined) {
-    // Merge role into existing metadata so other keys are preserved.
+
+  // Metadata changes (role and/or name) merge into existing metadata.
+  if (role !== undefined || name !== undefined) {
     const { data: existing, error: getErr } = await gate.admin.auth.admin.getUserById(id)
     if (getErr || !existing?.user) {
       return NextResponse.json({ error: getErr?.message || 'User not found' }, { status: 404 })
     }
-    updates.app_metadata = { ...(existing.user.app_metadata || {}), role }
-    updates.user_metadata = { ...(existing.user.user_metadata || {}), role }
+    const app = { ...(existing.user.app_metadata || {}) }
+    const meta = { ...(existing.user.user_metadata || {}) }
+    if (role !== undefined) { app.role = role; meta.role = role }
+    if (name !== undefined) { meta.full_name = String(name).trim() }
+    updates.app_metadata = app
+    updates.user_metadata = meta
   }
 
   const { data: updated, error } = await gate.admin.auth.admin.updateUserById(id, updates)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   return NextResponse.json({
-    user: { id: updated.user.id, email: updated.user.email, role: roleFromUser(updated.user) }
+    user: { id: updated.user.id, email: updated.user.email, role: roleFromUser(updated.user), name: nameFromUser(updated.user) }
   })
 }

@@ -78,6 +78,48 @@ as $$
   )
 $$;
 
+-- REPAIR (shared object): an earlier version of this script overwrote the
+-- project's existing public.handle_new_user() trigger function with a body that
+-- inserted a TEXT value into profiles.role (a `user_role` enum) without a cast
+-- and defaulted to 'viewer' (not a valid enum value). Because the trigger fires
+-- on every auth.users INSERT, that broke ALL new-user creation for every app on
+-- this shared project.
+--
+-- This restores a correct, isolation-safe version:
+--   * `admin` / `ceo` / `hr` (real roles in this DB's user_role enum, shared
+--     with the other app) are written to profiles with a proper enum cast.
+--   * TAF-only roles (`viewer` / `editor`) get NO profiles row. They are not
+--     enum values, and mirroring them would otherwise grant a real role like
+--     'hr' in the other project. TAF reads its own role from auth metadata,
+--     so these users need no profiles row.
+--   * Anything else (e.g. the other app signing up without a role) falls back
+--     to the column default 'hr'.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.raw_user_meta_data->>'role' in ('viewer','editor') then
+    return new;
+  end if;
+
+  insert into public.profiles (id, email, role)
+  values (
+    new.id,
+    new.email,
+    case
+      when new.raw_user_meta_data->>'role' in ('admin','ceo','hr')
+        then (new.raw_user_meta_data->>'role')::user_role
+      else 'hr'::user_role
+    end
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
 -- Row-Level Security (only on TAF's own tables).
 -- Data is publicly readable; writes require an editing role.
 alter table partners enable row level security;
